@@ -41,25 +41,23 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
 
     public Task ReplaceAsync(DocumentMetadata document, IReadOnlyList<PageContent> pages, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        var items = pages.Select(page => new Document
+        {
+            new StringField("documentId", document.Id, Field.Store.YES),
+            new StringField("path", document.FullPath, Field.Store.YES),
+            new StringField("extension", document.Extension, Field.Store.YES),
+            new StringField("page", page.PageNumber.ToString(), Field.Store.YES),
+            new StringField("location", page.Location, Field.Store.YES),
+            new TextField("fileName", document.FileName, Field.Store.YES),
+            new TextField("text", page.NormalizedText, Field.Store.NO),
+            new StoredField("originalText", page.OriginalText)
+        }).ToList();
         lock (_gate)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             _writer.DeleteDocuments(new Term("documentId", document.Id));
-            foreach (var page in pages)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var item = new Document
-                {
-                    new StringField("documentId", document.Id, Field.Store.YES),
-                    new StringField("path", document.FullPath, Field.Store.YES),
-                    new StringField("extension", document.Extension, Field.Store.YES),
-                    new StringField("page", page.PageNumber.ToString(), Field.Store.YES),
-                    new StringField("location", page.Location, Field.Store.YES),
-                    new TextField("fileName", document.FileName, Field.Store.YES),
-                    new TextField("text", page.NormalizedText, Field.Store.NO),
-                    new StoredField("originalText", page.OriginalText)
-                };
-                _writer.AddDocument(item);
-            }
+            foreach (var item in items) _writer.AddDocument(item);
         }
         return Task.CompletedTask;
     }
@@ -90,30 +88,27 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            lock (_gate)
+            if (!DirectoryReader.IndexExists(_directory))
             {
-                if (!DirectoryReader.IndexExists(_directory))
-                {
-                    var noIndexOutcome = new SearchOutcome(query, true, false, [], DateTime.UtcNow - started);
-                    _diagnostics.Write(noIndexOutcome, _indexPath);
-                    return noIndexOutcome;
-                }
-                using var reader = DirectoryReader.Open(_directory);
-                var searcher = new IndexSearcher(reader);
-                var parser = new MultiFieldQueryParser(Version, ["text", "fileName"], _analyzer);
-                var parsed = parser.Parse(QueryParserBase.Escape(normalizedQuery));
-                var hits = searcher.Search(parsed, maxResults).ScoreDocs;
-                var results = hits.Select(hit =>
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var document = searcher.Doc(hit.Doc);
-                    var original = document.Get("originalText") ?? string.Empty;
-                    return new SearchResult(document.Get("documentId") ?? string.Empty, document.Get("fileName") ?? string.Empty, document.Get("path") ?? string.Empty, document.Get("extension") ?? string.Empty, int.TryParse(document.Get("page"), out var page) && page > 0 ? page : null, document.Get("location") ?? "Document", MakeSnippet(original, normalizedQuery), hit.Score);
-                }).ToList();
-                var successOutcome = new SearchOutcome(query, true, false, results, DateTime.UtcNow - started);
-                _diagnostics.Write(successOutcome, _indexPath);
-                return successOutcome;
+                var noIndexOutcome = new SearchOutcome(query, true, false, [], DateTime.UtcNow - started);
+                _diagnostics.Write(noIndexOutcome, _indexPath);
+                return noIndexOutcome;
             }
+            using var reader = DirectoryReader.Open(_directory);
+            var searcher = new IndexSearcher(reader);
+            var parser = new MultiFieldQueryParser(Version, ["text", "fileName"], _analyzer);
+            var parsed = parser.Parse(QueryParserBase.Escape(normalizedQuery));
+            var hits = searcher.Search(parsed, maxResults).ScoreDocs;
+            var results = hits.Select(hit =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var document = searcher.Doc(hit.Doc);
+                var original = document.Get("originalText") ?? string.Empty;
+                return new SearchResult(document.Get("documentId") ?? string.Empty, document.Get("fileName") ?? string.Empty, document.Get("path") ?? string.Empty, document.Get("extension") ?? string.Empty, int.TryParse(document.Get("page"), out var page) && page > 0 ? page : null, document.Get("location") ?? "Document", MakeSnippet(original, normalizedQuery), hit.Score);
+            }).ToList();
+            var successOutcome = new SearchOutcome(query, true, false, results, DateTime.UtcNow - started);
+            _diagnostics.Write(successOutcome, _indexPath);
+            return successOutcome;
         }
         catch (OperationCanceledException)
         {

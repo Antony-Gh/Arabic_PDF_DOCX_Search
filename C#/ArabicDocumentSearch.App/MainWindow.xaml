@@ -48,7 +48,7 @@
                     <TextBlock Text="{Binding Speed}" Foreground="#667085" />
                 </WrapPanel>
             </StackPanel>
-            <DataGrid Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Results}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="Results_MouseDoubleClick" HeadersVisibility="Column">
+            <DataGrid Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Results}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="Results_MouseDoubleClick" HeadersVisibility="Column" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="220" />
                     <DataGridTextColumn Header="Page / location" Binding="{Binding Location}" Width="120" />
