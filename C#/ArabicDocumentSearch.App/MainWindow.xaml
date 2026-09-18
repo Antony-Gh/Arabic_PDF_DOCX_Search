@@ -40,6 +40,12 @@
                     <TextBlock Text="{Binding Status}" Foreground="#475467" />
                 </DockPanel>
                 <TextBlock Text="{Binding CurrentFile}" Foreground="#667085" TextTrimming="CharacterEllipsis" />
+                <WrapPanel Margin="0,6,0,0">
+                    <TextBlock Text="{Binding Elapsed}" Margin="0,0,18,0" Foreground="#667085" />
+                    <TextBlock Text="{Binding Remaining}" Margin="0,0,18,0" Foreground="#667085" />
+                    <TextBlock Text="{Binding Completion}" Margin="0,0,18,0" Foreground="#667085" />
+                    <TextBlock Text="{Binding Speed}" Foreground="#667085" />
+                </WrapPanel>
             </StackPanel>
             <DataGrid Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Results}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="Results_MouseDoubleClick" HeadersVisibility="Column">
                 <DataGrid.Columns>

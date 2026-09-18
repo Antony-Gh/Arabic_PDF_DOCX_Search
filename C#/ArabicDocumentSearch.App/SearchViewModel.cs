@@ -18,6 +18,10 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     private string _query = string.Empty;
     private string _status = "Choose a folder and index your documents.";
     private string _currentFile = string.Empty;
+    private string _elapsed = "Elapsed: 00:00:00";
+    private string _remaining = "Remaining: Calculating...";
+    private string _completion = "Estimated completion: Calculating...";
+    private string _speed = "Speed: Calculating...";
     private double _progress;
     private bool _isBusy;
 
@@ -43,6 +47,10 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     public string Query { get => _query; set { _query = value; OnChanged(); RefreshCommands(); } }
     public string Status { get => _status; private set { _status = value; OnChanged(); } }
     public string CurrentFile { get => _currentFile; private set { _currentFile = value; OnChanged(); } }
+    public string Elapsed { get => _elapsed; private set { _elapsed = value; OnChanged(); } }
+    public string Remaining { get => _remaining; private set { _remaining = value; OnChanged(); } }
+    public string Completion { get => _completion; private set { _completion = value; OnChanged(); } }
+    public string Speed { get => _speed; private set { _speed = value; OnChanged(); } }
     public double Progress { get => _progress; private set { _progress = value; OnChanged(); } }
     public bool IsBusy { get => _isBusy; private set { _isBusy = value; OnChanged(); OnChanged(nameof(CanIndex)); RefreshCommands(); } }
     public bool CanIndex => !IsBusy && !string.IsNullOrWhiteSpace(RootFolder);
@@ -77,6 +85,16 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     {
         Progress = progress.Total == 0 ? 100 : progress.Processed * 100d / progress.Total;
         CurrentFile = progress.CurrentFile ?? string.Empty;
+        Elapsed = $"Elapsed: {progress.Elapsed:hh\\:mm\\:ss}";
+        Remaining = progress.EstimatedRemaining is { } remaining
+            ? $"Remaining: {remaining:hh\\:mm\\:ss}"
+            : "Remaining: Calculating...";
+        Completion = progress.EstimatedCompletionUtc is { } completion
+            ? $"Estimated completion: {completion.ToLocalTime():HH:mm:ss}"
+            : "Estimated completion: Calculating...";
+        Speed = progress.FilesPerSecond > 0
+            ? $"Speed: {progress.FilesPerSecond:N1} files/sec"
+            : "Speed: Calculating...";
         Status = $"Indexing {progress.Processed:N0}/{progress.Total:N0}  |  Indexed {progress.Indexed:N0}  |  Skipped {progress.Skipped:N0}  |  Errors {progress.Errors:N0}";
     }
 

@@ -13,6 +13,7 @@ public sealed class DocumentIndexer(FileDiscovery discovery, IEnumerable<IDocume
         var result = new IndexProgress(documents.Count, 0, 0, 0, 0, 0, null, TimeSpan.Zero);
         progress?.Report(result);
         var processed = 0; var indexed = 0; var skipped = 0; var errors = 0;
+        var recentSamples = new System.Collections.Concurrent.ConcurrentQueue<(DateTime Timestamp, int Processed)>();
         await Parallel.ForEachAsync(documents, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2), CancellationToken = cancellationToken }, async (document, token) =>
         {
             try
@@ -40,7 +41,18 @@ public sealed class DocumentIndexer(FileDiscovery discovery, IEnumerable<IDocume
                 await metadata.UpsertAsync(new DocumentMetadata(document.Id, document.FullPath, document.FileName, document.Extension, document.FileSize, document.LastWriteTimeUtc, "Failed", DateTime.UtcNow, ErrorMessage: exception.Message), token);
             }
             var current = Interlocked.Increment(ref processed);
-            progress?.Report(new IndexProgress(documents.Count, current, indexed, skipped, errors, 0, document.FileName, DateTime.UtcNow - started));
+            var now = DateTime.UtcNow;
+            recentSamples.Enqueue((now, current));
+            while (recentSamples.TryPeek(out var sample) && (now - sample.Timestamp).TotalSeconds > 30) recentSamples.TryDequeue(out _);
+            var hasRecentSample = recentSamples.TryPeek(out var recent);
+            var recentTimestamp = hasRecentSample ? recent.Timestamp : now;
+            var recentProcessed = hasRecentSample ? recent.Processed : current;
+            var recentSeconds = Math.Max(0.001, (now - recentTimestamp).TotalSeconds);
+            var recentSpeed = (current - recentProcessed) / recentSeconds;
+            var overallSpeed = current / Math.Max(0.001, (now - started).TotalSeconds);
+            var speed = recentSamples.Count >= 2 ? (recentSpeed * 0.7) + (overallSpeed * 0.3) : overallSpeed;
+            var remaining = speed > 0 && documents.Count > current ? TimeSpan.FromSeconds((documents.Count - current) / speed) : (TimeSpan?)null;
+            progress?.Report(new IndexProgress(documents.Count, current, indexed, skipped, errors, 0, document.FileName, now - started, started, remaining, remaining is null ? null : now + remaining.Value, speed));
         });
         var missing = await metadata.RemoveMissingAsync(documents.Select(document => document.Id).ToHashSet(), cancellationToken);
         foreach (var documentId in missing) await index.RemoveAsync(documentId, cancellationToken);

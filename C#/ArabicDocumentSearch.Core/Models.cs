@@ -52,7 +52,11 @@ public sealed record IndexProgress(
     int Errors,
     int OcrPages,
     string? CurrentFile,
-    TimeSpan Elapsed);
+    TimeSpan Elapsed,
+    DateTime StartedAtUtc = default,
+    TimeSpan? EstimatedRemaining = null,
+    DateTime? EstimatedCompletionUtc = null,
+    double FilesPerSecond = 0);
 
 public sealed record IndexOptions(
     bool Incremental = true,

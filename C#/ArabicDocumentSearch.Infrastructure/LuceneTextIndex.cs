@@ -10,15 +10,28 @@ using Lucene.Net.Util;
 
 namespace ArabicDocumentSearch.Infrastructure;
 
-public sealed class LuceneTextIndex(IArabicTextNormalizer normalizer, ILogger<LuceneTextIndex> logger, string indexPath) : ITextIndex, IDisposable
+public sealed class LuceneTextIndex : ITextIndex, IDisposable
 {
     private static readonly LuceneVersion Version = LuceneVersion.LUCENE_48;
-    private readonly FSDirectory _directory = OpenDirectory(indexPath);
-    private readonly StandardAnalyzer _analyzer = new(Version);
-    private readonly IndexWriter _writer = new(_directory, new IndexWriterConfig(Version, _analyzer));
+    private readonly FSDirectory _directory;
+    private readonly StandardAnalyzer _analyzer;
+    private readonly IndexWriter _writer;
     private readonly object _gate = new();
-    private readonly IArabicTextNormalizer _normalizer = normalizer;
-    private readonly ILogger<LuceneTextIndex> _logger = logger;
+    private readonly IArabicTextNormalizer _normalizer;
+    private readonly ILogger<LuceneTextIndex> _logger;
+    private readonly SearchDiagnostics _diagnostics;
+    private readonly string _indexPath;
+
+    public LuceneTextIndex(IArabicTextNormalizer normalizer, ILogger<LuceneTextIndex> logger, SearchDiagnostics diagnostics, string indexPath)
+    {
+        _normalizer = normalizer;
+        _logger = logger;
+        _diagnostics = diagnostics;
+        _indexPath = indexPath;
+        _directory = OpenDirectory(indexPath);
+        _analyzer = new StandardAnalyzer(Version);
+        _writer = new IndexWriter(_directory, new IndexWriterConfig(Version, _analyzer));
+    }
 
     private static FSDirectory OpenDirectory(string path)
     {
@@ -68,7 +81,9 @@ public sealed class LuceneTextIndex(IArabicTextNormalizer normalizer, ILogger<Lu
         var normalizedQuery = _normalizer.Normalize(query);
         if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
-            return new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, "Enter a search term.", "EmptyQuery");
+            var emptyOutcome = new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, "Enter a search term.", "EmptyQuery");
+            _diagnostics.Write(emptyOutcome, _indexPath);
+            return emptyOutcome;
         }
 
         maxResults = Math.Clamp(maxResults, 1, 5000);
@@ -79,7 +94,9 @@ public sealed class LuceneTextIndex(IArabicTextNormalizer normalizer, ILogger<Lu
             {
                 if (!DirectoryReader.IndexExists(_directory))
                 {
-                    return new SearchOutcome(query, true, false, [], DateTime.UtcNow - started);
+                    var noIndexOutcome = new SearchOutcome(query, true, false, [], DateTime.UtcNow - started);
+                    _diagnostics.Write(noIndexOutcome, _indexPath);
+                    return noIndexOutcome;
                 }
                 using var reader = DirectoryReader.Open(_directory);
                 var searcher = new IndexSearcher(reader);
@@ -93,17 +110,23 @@ public sealed class LuceneTextIndex(IArabicTextNormalizer normalizer, ILogger<Lu
                     var original = document.Get("originalText") ?? string.Empty;
                     return new SearchResult(document.Get("documentId") ?? string.Empty, document.Get("fileName") ?? string.Empty, document.Get("path") ?? string.Empty, document.Get("extension") ?? string.Empty, int.TryParse(document.Get("page"), out var page) && page > 0 ? page : null, document.Get("location") ?? "Document", MakeSnippet(original, normalizedQuery), hit.Score);
                 }).ToList();
-                return new SearchOutcome(query, true, false, results, DateTime.UtcNow - started);
+                var successOutcome = new SearchOutcome(query, true, false, results, DateTime.UtcNow - started);
+                _diagnostics.Write(successOutcome, _indexPath);
+                return successOutcome;
             }
         }
         catch (OperationCanceledException)
         {
-            return new SearchOutcome(query, false, true, [], DateTime.UtcNow - started, "Search cancelled.", "OperationCanceledException");
+            var cancelledOutcome = new SearchOutcome(query, false, true, [], DateTime.UtcNow - started, "Search cancelled.", "OperationCanceledException");
+            _diagnostics.Write(cancelledOutcome, _indexPath);
+            return cancelledOutcome;
         }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Search failed for query length {QueryLength}", query.Length);
-            return new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, exception.Message, exception.GetType().Name);
+            var failureOutcome = new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, exception.Message, exception.GetType().Name);
+            _diagnostics.Write(failureOutcome, _indexPath);
+            return failureOutcome;
         }
     }
 
