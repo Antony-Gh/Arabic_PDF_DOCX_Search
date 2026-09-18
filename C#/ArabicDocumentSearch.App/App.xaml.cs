@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using System.IO;
 using ArabicDocumentSearch.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -8,7 +9,7 @@ namespace ArabicDocumentSearch.App;
 /// <summary>
 /// Interaction logic for App.xaml
 /// </summary>
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
 	private IHost? _host;
 

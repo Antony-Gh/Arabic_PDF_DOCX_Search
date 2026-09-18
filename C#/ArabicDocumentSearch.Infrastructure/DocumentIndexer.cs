@@ -42,7 +42,8 @@ public sealed class DocumentIndexer(FileDiscovery discovery, IEnumerable<IDocume
             var current = Interlocked.Increment(ref processed);
             progress?.Report(new IndexProgress(documents.Count, current, indexed, skipped, errors, 0, document.FileName, DateTime.UtcNow - started));
         });
-        await metadata.RemoveMissingAsync(documents.Select(document => document.Id).ToHashSet(), cancellationToken);
+        var missing = await metadata.RemoveMissingAsync(documents.Select(document => document.Id).ToHashSet(), cancellationToken);
+        foreach (var documentId in missing) await index.RemoveAsync(documentId, cancellationToken);
         index.Commit();
         return new IndexProgress(documents.Count, processed, indexed, skipped, errors, 0, null, DateTime.UtcNow - started);
     }

@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Input;
 using Forms = System.Windows.Forms;
+using ArabicDocumentSearch.Core;
 
 namespace ArabicDocumentSearch.App;
 
@@ -30,7 +31,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() == Forms.DialogResult.OK) _viewModel.AddExcludedFolder(dialog.SelectedPath);
     }
 
-    private void Query_KeyDown(object sender, KeyEventArgs e)
+    private void Query_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Enter && _viewModel.SearchCommand.CanExecute(null)) _viewModel.SearchCommand.Execute(null);
     }

@@ -66,7 +66,7 @@ public interface IMetadataStore
     Task InitializeAsync(CancellationToken cancellationToken = default);
     Task<DocumentMetadata?> GetAsync(string documentId, CancellationToken cancellationToken = default);
     Task UpsertAsync(DocumentMetadata metadata, CancellationToken cancellationToken = default);
-    Task RemoveMissingAsync(IReadOnlySet<string> discoveredIds, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> RemoveMissingAsync(IReadOnlySet<string> discoveredIds, CancellationToken cancellationToken = default);
 }
 
 public interface ITextIndex

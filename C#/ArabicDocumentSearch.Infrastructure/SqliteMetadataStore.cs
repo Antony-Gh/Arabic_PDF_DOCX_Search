@@ -50,7 +50,7 @@ public sealed class SqliteMetadataStore(string databasePath) : IMetadataStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task RemoveMissingAsync(IReadOnlySet<string> discoveredIds, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> RemoveMissingAsync(IReadOnlySet<string> discoveredIds, CancellationToken cancellationToken = default)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
@@ -58,9 +58,11 @@ public sealed class SqliteMetadataStore(string databasePath) : IMetadataStore
         command.CommandText = "SELECT Id FROM Documents";
         var existing = new List<string>();
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken)) while (await reader.ReadAsync(cancellationToken)) existing.Add(reader.GetString(0));
-        foreach (var id in existing.Where(id => !discoveredIds.Contains(id)))
+        var missing = existing.Where(id => !discoveredIds.Contains(id)).ToList();
+        foreach (var id in missing)
         {
             command = connection.CreateCommand(); command.CommandText = "DELETE FROM Documents WHERE Id=$id"; command.Parameters.AddWithValue("$id", id); await command.ExecuteNonQueryAsync(cancellationToken);
         }
+        return missing;
     }
 }
