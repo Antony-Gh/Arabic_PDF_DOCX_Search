@@ -15,7 +15,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDocumentExtractor, PdfTextExtractor>();
         services.AddSingleton<IDocumentExtractor, DocxTextExtractor>();
         services.AddSingleton<IMetadataStore>(_ => new SqliteMetadataStore(database));
-        services.AddSingleton<ITextIndex>(_ => new LuceneTextIndex(index));
+        services.AddSingleton<ITextIndex>(provider => new LuceneTextIndex(
+            provider.GetRequiredService<IArabicTextNormalizer>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<LuceneTextIndex>>(),
+            index));
         services.AddSingleton<IDocumentIndexer, DocumentIndexer>();
         services.AddLogging();
         return services;

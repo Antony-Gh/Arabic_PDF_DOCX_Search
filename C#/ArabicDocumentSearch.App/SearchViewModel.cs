@@ -12,6 +12,7 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     private readonly IDocumentIndexer _indexer;
     private readonly ITextIndex _searchIndex;
     private CancellationTokenSource? _indexCancellation;
+    private CancellationTokenSource? _searchCancellation;
     private string _rootFolder = string.Empty;
     private string _excludedFolders = string.Empty;
     private string _query = string.Empty;
@@ -26,7 +27,7 @@ public sealed class SearchViewModel : INotifyPropertyChanged
         _searchIndex = searchIndex;
         IndexCommand = new AsyncCommand(IndexAsync, () => !IsBusy && !string.IsNullOrWhiteSpace(RootFolder));
         CancelCommand = new RelayCommand(Cancel, () => IsBusy);
-        SearchCommand = new RelayCommand(Search, () => !string.IsNullOrWhiteSpace(Query));
+        SearchCommand = new RelayCommand(() => _ = SearchAsync(), () => !string.IsNullOrWhiteSpace(Query));
         OpenResultCommand = new RelayCommand<SearchResult>(OpenResult);
     }
 
@@ -80,11 +81,45 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     }
 
     private void Cancel() => _indexCancellation?.Cancel();
-    private void Search()
+    private async Task SearchAsync()
     {
+        _searchCancellation?.Cancel();
+        _searchCancellation?.Dispose();
+        var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        _searchCancellation = cancellation;
+        var stopwatch = Stopwatch.StartNew();
         Results.Clear();
-        foreach (var result in _searchIndex.Search(Query, 500)) Results.Add(result);
-        Status = $"{Results.Count:N0} results";
+        try
+        {
+            var outcome = await _searchIndex.SearchAsync(Query, 500, cancellation.Token);
+            if (outcome.Cancelled)
+            {
+                Status = "Search cancelled.";
+                return;
+            }
+            if (!outcome.Succeeded)
+            {
+                Status = $"Search failed: {outcome.ErrorMessage}";
+                return;
+            }
+            foreach (var result in outcome.Results) Results.Add(result);
+            Status = outcome.Results.Count == 0
+                ? $"No results • {stopwatch.ElapsedMilliseconds:N0} ms"
+                : $"Found {outcome.Results.Count:N0} results • {stopwatch.ElapsedMilliseconds:N0} ms";
+        }
+        catch (OperationCanceledException)
+        {
+            Status = "Search cancelled.";
+        }
+        catch (Exception exception)
+        {
+            Status = $"Search failed: {exception.Message}";
+        }
+        finally
+        {
+            if (ReferenceEquals(_searchCancellation, cancellation)) _searchCancellation = null;
+            cancellation.Dispose();
+        }
     }
 
     private static void OpenResult(SearchResult? result)

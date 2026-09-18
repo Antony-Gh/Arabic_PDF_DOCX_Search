@@ -1,4 +1,5 @@
 using ArabicDocumentSearch.Core;
+using Microsoft.Extensions.Logging;
 using Lucene.Net.Analysis.Standard;
 using Lucene.Net.Documents;
 using Lucene.Net.Index;
@@ -9,19 +10,20 @@ using Lucene.Net.Util;
 
 namespace ArabicDocumentSearch.Infrastructure;
 
-public sealed class LuceneTextIndex : ITextIndex, IDisposable
+public sealed class LuceneTextIndex(IArabicTextNormalizer normalizer, ILogger<LuceneTextIndex> logger, string indexPath) : ITextIndex, IDisposable
 {
     private static readonly LuceneVersion Version = LuceneVersion.LUCENE_48;
-    private readonly FSDirectory _directory;
+    private readonly FSDirectory _directory = OpenDirectory(indexPath);
     private readonly StandardAnalyzer _analyzer = new(Version);
-    private readonly IndexWriter _writer;
+    private readonly IndexWriter _writer = new(_directory, new IndexWriterConfig(Version, _analyzer));
     private readonly object _gate = new();
+    private readonly IArabicTextNormalizer _normalizer = normalizer;
+    private readonly ILogger<LuceneTextIndex> _logger = logger;
 
-    public LuceneTextIndex(string indexPath)
+    private static FSDirectory OpenDirectory(string path)
     {
-        System.IO.Directory.CreateDirectory(indexPath);
-        _directory = FSDirectory.Open(indexPath);
-        _writer = new IndexWriter(_directory, new IndexWriterConfig(Version, _analyzer));
+        System.IO.Directory.CreateDirectory(path);
+        return FSDirectory.Open(path);
     }
 
     public Task ReplaceAsync(DocumentMetadata document, IReadOnlyList<PageContent> pages, CancellationToken cancellationToken = default)
@@ -55,24 +57,53 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
         return Task.CompletedTask;
     }
 
-    public IReadOnlyList<SearchResult> Search(string query, int maxResults = 500)
+    public Task<SearchOutcome> SearchAsync(string query, int maxResults, CancellationToken cancellationToken = default)
     {
-        lock (_gate)
+        return Task.Run(() => SearchCore(query, maxResults, cancellationToken), cancellationToken);
+    }
+
+    private SearchOutcome SearchCore(string query, int maxResults, CancellationToken cancellationToken)
+    {
+        var started = DateTime.UtcNow;
+        var normalizedQuery = _normalizer.Normalize(query);
+        if (string.IsNullOrWhiteSpace(normalizedQuery))
         {
-            _writer.Commit();
-            using var reader = DirectoryReader.Open(_directory);
-            var searcher = new IndexSearcher(reader);
-            var parser = new MultiFieldQueryParser(Version, ["text", "fileName"], _analyzer);
-            Query parsed;
-            try { parsed = parser.Parse(QueryParserBase.Escape(query)); }
-            catch (ParseException) { return []; }
-            var hits = searcher.Search(parsed, maxResults).ScoreDocs;
-            return hits.Select(hit =>
+            return new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, "Enter a search term.", "EmptyQuery");
+        }
+
+        maxResults = Math.Clamp(maxResults, 1, 5000);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_gate)
             {
-                var document = searcher.Doc(hit.Doc);
-                var original = document.Get("originalText") ?? string.Empty;
-                return new SearchResult(document.Get("documentId") ?? string.Empty, document.Get("fileName") ?? string.Empty, document.Get("path") ?? string.Empty, document.Get("extension") ?? string.Empty, int.TryParse(document.Get("page"), out var page) && page > 0 ? page : null, document.Get("location") ?? "Document", MakeSnippet(original, query), hit.Score);
-            }).ToList();
+                if (!DirectoryReader.IndexExists(_directory))
+                {
+                    return new SearchOutcome(query, true, false, [], DateTime.UtcNow - started);
+                }
+                using var reader = DirectoryReader.Open(_directory);
+                var searcher = new IndexSearcher(reader);
+                var parser = new MultiFieldQueryParser(Version, ["text", "fileName"], _analyzer);
+                var parsed = parser.Parse(QueryParserBase.Escape(normalizedQuery));
+                var hits = searcher.Search(parsed, maxResults).ScoreDocs;
+                var results = hits.Select(hit =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var document = searcher.Doc(hit.Doc);
+                    var original = document.Get("originalText") ?? string.Empty;
+                    return new SearchResult(document.Get("documentId") ?? string.Empty, document.Get("fileName") ?? string.Empty, document.Get("path") ?? string.Empty, document.Get("extension") ?? string.Empty, int.TryParse(document.Get("page"), out var page) && page > 0 ? page : null, document.Get("location") ?? "Document", MakeSnippet(original, normalizedQuery), hit.Score);
+                }).ToList();
+                return new SearchOutcome(query, true, false, results, DateTime.UtcNow - started);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return new SearchOutcome(query, false, true, [], DateTime.UtcNow - started, "Search cancelled.", "OperationCanceledException");
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Search failed for query length {QueryLength}", query.Length);
+            return new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, exception.Message, exception.GetType().Name);
         }
     }
 

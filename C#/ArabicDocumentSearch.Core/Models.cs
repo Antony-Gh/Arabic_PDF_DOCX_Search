@@ -35,6 +35,15 @@ public sealed record SearchResult(
     string Snippet,
     float Score);
 
+public sealed record SearchOutcome(
+    string Query,
+    bool Succeeded,
+    bool Cancelled,
+    IReadOnlyList<SearchResult> Results,
+    TimeSpan Elapsed,
+    string? ErrorMessage = null,
+    string? ErrorType = null);
+
 public sealed record IndexProgress(
     int Total,
     int Processed,
@@ -73,7 +82,7 @@ public interface ITextIndex
 {
     Task ReplaceAsync(DocumentMetadata document, IReadOnlyList<PageContent> pages, CancellationToken cancellationToken = default);
     Task RemoveAsync(string documentId, CancellationToken cancellationToken = default);
-    IReadOnlyList<SearchResult> Search(string query, int maxResults = 500);
+    Task<SearchOutcome> SearchAsync(string query, int maxResults, CancellationToken cancellationToken = default);
     void Commit();
 }
 
