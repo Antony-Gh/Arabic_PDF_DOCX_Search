@@ -37,13 +37,13 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     public ICommand SearchCommand { get; }
     public ICommand OpenResultCommand { get; }
 
-    public string RootFolder { get => _rootFolder; set { _rootFolder = value; OnChanged(); OnChanged(nameof(CanIndex)); } }
+    public string RootFolder { get => _rootFolder; set { _rootFolder = value; OnChanged(); OnChanged(nameof(CanIndex)); RefreshCommands(); } }
     public string ExcludedFolders { get => _excludedFolders; set { _excludedFolders = value; OnChanged(); } }
-    public string Query { get => _query; set { _query = value; OnChanged(); } }
+    public string Query { get => _query; set { _query = value; OnChanged(); RefreshCommands(); } }
     public string Status { get => _status; private set { _status = value; OnChanged(); } }
     public string CurrentFile { get => _currentFile; private set { _currentFile = value; OnChanged(); } }
     public double Progress { get => _progress; private set { _progress = value; OnChanged(); } }
-    public bool IsBusy { get => _isBusy; private set { _isBusy = value; OnChanged(); OnChanged(nameof(CanIndex)); } }
+    public bool IsBusy { get => _isBusy; private set { _isBusy = value; OnChanged(); OnChanged(nameof(CanIndex)); RefreshCommands(); } }
     public bool CanIndex => !IsBusy && !string.IsNullOrWhiteSpace(RootFolder);
 
     public void SetRootFolder(string path) => RootFolder = path;
@@ -91,6 +91,13 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     }
 
     private void OnChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private void RefreshCommands()
+    {
+        if (IndexCommand is AsyncCommand index) index.RaiseCanExecuteChanged();
+        if (CancelCommand is RelayCommand cancel) cancel.RaiseCanExecuteChanged();
+        if (SearchCommand is RelayCommand search) search.RaiseCanExecuteChanged();
+    }
 }
 
 public sealed class RelayCommand(Action action, Func<bool>? canExecute = null) : ICommand
@@ -113,10 +120,11 @@ public sealed class AsyncCommand(Func<Task> action, Func<bool> canExecute) : ICo
     private bool _running;
     public event EventHandler? CanExecuteChanged;
     public bool CanExecute(object? parameter) => !_running && canExecute();
+    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     public async void Execute(object? parameter)
     {
         if (_running) return;
-        _running = true; CanExecuteChanged?.Invoke(this, EventArgs.Empty);
-        try { await action(); } finally { _running = false; CanExecuteChanged?.Invoke(this, EventArgs.Empty); }
+        _running = true; RaiseCanExecuteChanged();
+        try { await action(); } finally { _running = false; RaiseCanExecuteChanged(); }
     }
 }
