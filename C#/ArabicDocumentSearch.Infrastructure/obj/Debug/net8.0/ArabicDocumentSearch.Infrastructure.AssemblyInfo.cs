@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ArabicDocumentSearch.Infrastructure")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ea66ca73b449c3876c38318cc86afe26d82f88c0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+97539f9a9d1598111c944a2f37cef47a0d64ed43")]
 [assembly: System.Reflection.AssemblyProductAttribute("ArabicDocumentSearch.Infrastructure")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ArabicDocumentSearch.Infrastructure")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

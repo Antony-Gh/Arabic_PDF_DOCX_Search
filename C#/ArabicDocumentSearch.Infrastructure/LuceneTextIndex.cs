@@ -19,7 +19,7 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
 
     public LuceneTextIndex(string indexPath)
     {
-        Directory.CreateDirectory(indexPath);
+        System.IO.Directory.CreateDirectory(indexPath);
         _directory = FSDirectory.Open(indexPath);
         _writer = new IndexWriter(_directory, new IndexWriterConfig(Version, _analyzer));
     }
