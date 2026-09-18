@@ -1,6 +1,0 @@
-D:\arabic_pdf_docx_search\C#\ArabicDocumentSearch.Infrastructure\obj\Debug\net8.0\ArabicDocumentSearch.Infrastructure.csproj.AssemblyReference.cache
-D:\arabic_pdf_docx_search\C#\ArabicDocumentSearch.Infrastructure\obj\Debug\net8.0\ArabicDocumentSearch.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
-D:\arabic_pdf_docx_search\C#\ArabicDocumentSearch.Infrastructure\obj\Debug\net8.0\ArabicDocumentSearch.Infrastructure.AssemblyInfoInputs.cache
-D:\arabic_pdf_docx_search\C#\ArabicDocumentSearch.Infrastructure\obj\Debug\net8.0\ArabicDocumentSearch.Infrastructure.AssemblyInfo.cs
-D:\arabic_pdf_docx_search\C#\ArabicDocumentSearch.Infrastructure\obj\Debug\net8.0\ArabicDocumentSearch.Infrastructure.csproj.CoreCompileInputs.cache
-D:\arabic_pdf_docx_search\C#\ArabicDocumentSearch.Infrastructure\obj\Debug\net8.0\ArabicDocumentSearch.Infrastructure.sourcelink.json
