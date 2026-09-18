@@ -17,7 +17,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMetadataStore>(_ => new SqliteMetadataStore(database));
         services.AddSingleton<ITextIndex>(_ => new LuceneTextIndex(index));
         services.AddSingleton<IDocumentIndexer, DocumentIndexer>();
-        services.AddLogging(builder => builder.AddDebug());
+        services.AddLogging();
         return services;
     }
 }
