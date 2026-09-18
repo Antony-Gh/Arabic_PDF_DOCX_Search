@@ -99,6 +99,7 @@ class SearchApp(tk.Tk):
         self.tesseract = tk.StringVar()
         self.status = tk.StringVar(value="Choose a folder and index your documents.")
         self.index = []  # (path, page, original_text, normalized_text)
+        self.excluded_folders = []
         self.index_button = None
         self.progress = None
 
@@ -113,6 +114,7 @@ class SearchApp(tk.Tk):
         ttk.Label(top, text="Documents folder:").pack(side="left")
         ttk.Entry(top, textvariable=self.folder).pack(side="left", fill="x", expand=True, padx=8)
         ttk.Button(top, text="Choose Folder", command=self.choose_folder).pack(side="left")
+        ttk.Button(top, text="Exclude Folders", command=self.manage_excluded_folders).pack(side="left", padx=5)
         self.index_button = ttk.Button(top, text="Index Files", command=self.start_index)
         self.index_button.pack(side="left", padx=5)
 
@@ -169,6 +171,66 @@ class SearchApp(tk.Tk):
         if p:
             self.folder.set(p)
 
+    def manage_excluded_folders(self):
+        root_folder = self.folder.get().strip()
+        dialog = tk.Toplevel(self)
+        dialog.title("Excluded folders")
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("620x300")
+
+        ttk.Label(
+            dialog,
+            text="Folders below the selected documents folder will be skipped during indexing.",
+            wraplength=580,
+        ).pack(fill="x", padx=12, pady=(12, 6))
+
+        listbox = tk.Listbox(dialog, height=8, exportselection=False)
+        listbox.pack(fill="both", expand=True, padx=12, pady=6)
+        for excluded in self.excluded_folders:
+            listbox.insert("end", excluded)
+
+        controls = ttk.Frame(dialog)
+        controls.pack(fill="x", padx=12, pady=(0, 12))
+
+        def add_folder():
+            selected = filedialog.askdirectory(
+                parent=dialog,
+                title="Choose folder to exclude",
+                initialdir=root_folder or None,
+            )
+            if not selected:
+                return
+            selected_path = Path(selected).resolve()
+            if root_folder:
+                root_path = Path(root_folder).resolve()
+                try:
+                    selected_path.relative_to(root_path)
+                except ValueError:
+                    messagebox.showwarning(
+                        "Invalid exclusion",
+                        "Excluded folders must be inside the selected documents folder.",
+                        parent=dialog,
+                    )
+                    return
+            selected_text = str(selected_path)
+            if selected_text not in [listbox.get(i) for i in range(listbox.size())]:
+                listbox.insert("end", selected_text)
+
+        def remove_folder():
+            selection = listbox.curselection()
+            if selection:
+                listbox.delete(selection[0])
+
+        ttk.Button(controls, text="Add Folder", command=add_folder).pack(side="left")
+        ttk.Button(controls, text="Remove Selected", command=remove_folder).pack(side="left", padx=6)
+
+        def save():
+            self.excluded_folders = list(listbox.get(0, "end"))
+            dialog.destroy()
+
+        ttk.Button(controls, text="Done", command=save).pack(side="right")
+
     def choose_tesseract(self):
         p = filedialog.askopenfilename(
             title="Select tesseract.exe",
@@ -191,18 +253,28 @@ class SearchApp(tk.Tk):
 
         use_ocr = self.use_ocr.get()
         tesseract_path = self.tesseract.get().strip()
+        excluded_folders = tuple(self.excluded_folders)
         threading.Thread(
             target=self.index_documents,
-            args=(Path(folder_value), use_ocr, tesseract_path),
+            args=(Path(folder_value), use_ocr, tesseract_path, excluded_folders),
             daemon=True,
         ).start()
 
-    def index_documents(self, folder, use_ocr, tesseract_path):
+    def index_documents(self, folder, use_ocr, tesseract_path, excluded_folders=()):
         try:
-            paths = [
-                p for p in folder.rglob("*")
-                if p.is_file() and p.suffix.lower() in {".pdf", ".docx"}
-            ]
+            excluded = {Path(path).resolve() for path in excluded_folders}
+            paths = []
+            for current_root, directories, filenames in os.walk(folder):
+                current_path = Path(current_root).resolve()
+                directories[:] = [
+                    name for name in directories
+                    if (current_path / name).resolve() not in excluded
+                ]
+                paths.extend(
+                    current_path / name
+                    for name in filenames
+                    if Path(name).suffix.lower() in {".pdf", ".docx"}
+                )
         except Exception as e:
             self.after(0, self.finish_index, [], 0, f"Could not scan folder: {e}")
             return

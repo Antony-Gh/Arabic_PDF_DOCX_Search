@@ -18,6 +18,7 @@ A local Windows desktop application for searching recursively through PDF and DO
 - Opens the source file from the result
 - Re-indexes with one click
 - Shows indexing progress while scanning the folder
+- Allows selected subfolders to be excluded from indexing
 - No cloud upload: documents stay on your computer
 
 ## Important
@@ -67,12 +68,13 @@ If Tesseract is installed elsewhere, put its executable path in the application'
 ## Usage
 
 1. Click "Choose Folder".
-2. Click "Index Files".
-3. Enter a phrase such as:
+2. Optionally click "Exclude Folders" to skip subfolders.
+3. Click "Index Files".
+4. Enter a phrase such as:
 
    `صدر الحكم الاتى في القضية رقم 6871 لسنة 2025`
 
-4. Choose:
+5. Choose:
    - Exact / normalized search for normal documents.
    - Fuzzy search if OCR contains small errors.
-5. Double-click a result to open the file.
+6. Double-click a result to open the file.
