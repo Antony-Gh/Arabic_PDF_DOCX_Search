@@ -1,0 +1,11 @@
+<Window x:Class="ArabicDocumentSearch.App.DiagnosticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Diagnostics" Height="700" Width="1100">
+    <Grid Margin="16">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <TextBlock Text="Search diagnostics (local, document contents are not logged)" FontWeight="SemiBold" Margin="0,0,0,10" />
+        <TextBox x:Name="LogText" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0"><Button Content="Copy diagnostics" Click="Copy_Click"/><Button Content="Export TXT" Click="Export_Click"/><Button Content="Refresh" Click="Refresh_Click"/></StackPanel>
+    </Grid>
+</Window>

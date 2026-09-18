@@ -47,11 +47,14 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
             new StringField("documentId", document.Id, Field.Store.YES),
             new StringField("path", document.FullPath, Field.Store.YES),
             new StringField("extension", document.Extension, Field.Store.YES),
+            new TextField("pathText", document.FullPath, Field.Store.NO),
             new StringField("page", page.PageNumber.ToString(), Field.Store.YES),
             new StringField("location", page.Location, Field.Store.YES),
             new TextField("fileName", document.FileName, Field.Store.YES),
+            new TextField("fileNameSearch", NormalizeFileName(document.FileName), Field.Store.NO),
             new TextField("text", page.NormalizedText, Field.Store.NO),
-            new StoredField("originalText", page.OriginalText)
+            new StoredField("originalText", page.OriginalText),
+            new StoredField("normalizedText", page.NormalizedText)
         }).ToList();
         lock (_gate)
         {
@@ -68,12 +71,12 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
         return Task.CompletedTask;
     }
 
-    public Task<SearchOutcome> SearchAsync(string query, int maxResults, CancellationToken cancellationToken = default)
+    public Task<SearchOutcome> SearchAsync(string query, SearchScope scope, int maxResults, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => SearchCore(query, maxResults, cancellationToken), cancellationToken);
+        return Task.Run(() => SearchCore(query, scope, maxResults, cancellationToken), cancellationToken);
     }
 
-    private SearchOutcome SearchCore(string query, int maxResults, CancellationToken cancellationToken)
+    private SearchOutcome SearchCore(string query, SearchScope scope, int maxResults, CancellationToken cancellationToken)
     {
         var started = DateTime.UtcNow;
         var normalizedQuery = _normalizer.Normalize(query);
@@ -96,15 +99,27 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
             }
             using var reader = DirectoryReader.Open(_directory);
             var searcher = new IndexSearcher(reader);
-            var parser = new MultiFieldQueryParser(Version, ["text", "fileName"], _analyzer);
-            var parsed = parser.Parse(QueryParserBase.Escape(normalizedQuery));
+            var fields = scope switch
+            {
+                SearchScope.DocumentText => new[] { "text" },
+                SearchScope.FileName => new[] { "fileName", "fileNameSearch" },
+                SearchScope.Path => new[] { "pathText" },
+                _ => new[] { "text", "fileName", "fileNameSearch", "pathText" }
+            };
+            var parser = new MultiFieldQueryParser(Version, fields, _analyzer);
+            var parsed = BuildMultilingualQuery(parser, normalizedQuery, scope);
             var hits = searcher.Search(parsed, maxResults).ScoreDocs;
             var results = hits.Select(hit =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var document = searcher.Doc(hit.Doc);
                 var original = document.Get("originalText") ?? string.Empty;
-                return new SearchResult(document.Get("documentId") ?? string.Empty, document.Get("fileName") ?? string.Empty, document.Get("path") ?? string.Empty, document.Get("extension") ?? string.Empty, int.TryParse(document.Get("page"), out var page) && page > 0 ? page : null, document.Get("location") ?? "Document", MakeSnippet(original, normalizedQuery), hit.Score);
+                var fileName = document.Get("fileName") ?? string.Empty;
+                var path = document.Get("path") ?? string.Empty;
+                var matchKind = scope == SearchScope.FileName || (scope == SearchScope.All && _normalizer.Normalize(fileName).Contains(normalizedQuery, StringComparison.Ordinal))
+                    ? "Filename"
+                    : scope == SearchScope.Path ? "Path" : "Content";
+                return new SearchResult(document.Get("documentId") ?? string.Empty, fileName, path, document.Get("extension") ?? string.Empty, int.TryParse(document.Get("page"), out var page) && page > 0 ? page : null, document.Get("location") ?? "Document", MakeSnippet(original, normalizedQuery), hit.Score, matchKind);
             }).ToList();
             var successOutcome = new SearchOutcome(query, true, false, results, DateTime.UtcNow - started);
             _diagnostics.Write(successOutcome, _indexPath);
@@ -125,6 +140,51 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
         }
     }
 
+    public Task<ExtractedDocument?> GetExtractedDocumentAsync(string documentId, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!DirectoryReader.IndexExists(_directory)) return null;
+            using var reader = DirectoryReader.Open(_directory);
+            var searcher = new IndexSearcher(reader);
+            var hits = searcher.Search(new TermQuery(new Term("documentId", documentId)), 1000).ScoreDocs;
+            if (hits.Length == 0) return null;
+            var pages = hits.Select(hit =>
+            {
+                var document = searcher.Doc(hit.Doc);
+                var page = int.TryParse(document.Get("page"), out var pageNumber) ? pageNumber : 0;
+                return new PageContent(page, document.Get("originalText") ?? string.Empty, document.Get("normalizedText") ?? string.Empty, document.Get("location") ?? "Document");
+            }).OrderBy(page => page.PageNumber).ToList();
+            var first = searcher.Doc(hits[0].Doc);
+            return new ExtractedDocument(documentId, first.Get("fileName") ?? string.Empty, first.Get("path") ?? string.Empty, pages);
+        }, cancellationToken);
+    }
+
+    private static Query BuildMultilingualQuery(MultiFieldQueryParser parser, string query, SearchScope scope)
+    {
+        var tokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (scope == SearchScope.FileName)
+        {
+            var filenameQuery = new BooleanQuery();
+            foreach (var token in tokens) filenameQuery.Add(new WildcardQuery(new Term("fileName", $"*{token.ToLowerInvariant()}*")), Occur.MUST);
+            return filenameQuery;
+        }
+        if (scope == SearchScope.All)
+        {
+            var all = new BooleanQuery
+            {
+                { BuildMultilingualQuery(parser, query, SearchScope.DocumentText), Occur.SHOULD },
+                { BuildMultilingualQuery(parser, query, SearchScope.FileName), Occur.SHOULD }
+            };
+            return all;
+        }
+        if (tokens.Length == 1) return parser.Parse(QueryParserBase.Escape(tokens[0]));
+        var boolean = new BooleanQuery();
+        foreach (var token in tokens) boolean.Add(parser.Parse(QueryParserBase.Escape(token)), Occur.MUST);
+        return boolean;
+    }
+
     public void Commit() { lock (_gate) _writer.Commit(); }
 
     private static string MakeSnippet(string text, string query)
@@ -134,6 +194,11 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
         var start = Math.Max(0, position < 0 ? 0 : position - 140);
         return (start > 0 ? "... " : string.Empty) + text.Substring(start, Math.Min(360, text.Length - start)).Trim() + (start + 360 < text.Length ? " ..." : string.Empty);
     }
+
+    private static string NormalizeFileName(string fileName) => fileName
+        .Replace('_', ' ')
+        .Replace('-', ' ')
+        .Replace('.', ' ');
 
     public void Dispose() { _writer.Dispose(); _analyzer.Dispose(); _directory.Dispose(); }
 }

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ArabicDocumentSearch.Infrastructure;
 
-public sealed class DocumentIndexer(FileDiscovery discovery, IEnumerable<IDocumentExtractor> extractors, IMetadataStore metadata, ITextIndex index, ILogger<DocumentIndexer> logger) : IDocumentIndexer
+public sealed class DocumentIndexer(FileDiscovery discovery, IEnumerable<IDocumentExtractor> extractors, IMetadataStore metadata, ITextIndex index, ILogger<DocumentIndexer> logger, ErrorDiagnostics diagnostics) : IDocumentIndexer
 {
     public async Task<IndexProgress> IndexAsync(string rootFolder, IndexOptions options, IProgress<IndexProgress>? progress, CancellationToken cancellationToken)
     {
@@ -38,6 +38,7 @@ public sealed class DocumentIndexer(FileDiscovery discovery, IEnumerable<IDocume
             {
                 Interlocked.Increment(ref errors);
                 logger.LogError(exception, "Failed to index {Path}", document.FullPath);
+                diagnostics.Write("Document indexing", document.FullPath, exception);
                 try
                 {
                     await metadata.UpsertAsync(new DocumentMetadata(document.Id, document.FullPath, document.FileName, document.Extension, document.FileSize, document.LastWriteTimeUtc, "Failed", DateTime.UtcNow, ErrorMessage: exception.Message), token);

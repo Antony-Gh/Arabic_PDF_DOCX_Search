@@ -33,7 +33,22 @@ public sealed record SearchResult(
     int? PageNumber,
     string Location,
     string Snippet,
-    float Score);
+    float Score,
+    string MatchKind = "Content");
+
+public sealed record ExtractedDocument(
+    string DocumentId,
+    string FileName,
+    string FullPath,
+    IReadOnlyList<PageContent> Pages);
+
+public enum SearchScope
+{
+    All,
+    DocumentText,
+    FileName,
+    Path
+}
 
 public sealed record SearchOutcome(
     string Query,
@@ -87,7 +102,8 @@ public interface ITextIndex
 {
     Task ReplaceAsync(DocumentMetadata document, IReadOnlyList<PageContent> pages, CancellationToken cancellationToken = default);
     Task RemoveAsync(string documentId, CancellationToken cancellationToken = default);
-    Task<SearchOutcome> SearchAsync(string query, int maxResults, CancellationToken cancellationToken = default);
+    Task<SearchOutcome> SearchAsync(string query, SearchScope scope, int maxResults, CancellationToken cancellationToken = default);
+    Task<ExtractedDocument?> GetExtractedDocumentAsync(string documentId, CancellationToken cancellationToken = default);
     void Commit();
 }
 

@@ -20,6 +20,16 @@ public sealed class DocxTextExtractor(IArabicTextNormalizer normalizer) : IDocum
             var text = element.InnerText?.Trim();
             if (!string.IsNullOrWhiteSpace(text)) sections.Add(text);
         }
+        foreach (var header in package.MainDocumentPart?.HeaderParts ?? [])
+        {
+            var text = header.Header?.InnerText?.Trim();
+            if (!string.IsNullOrWhiteSpace(text)) sections.Add(text);
+        }
+        foreach (var footer in package.MainDocumentPart?.FooterParts ?? [])
+        {
+            var text = footer.Footer?.InnerText?.Trim();
+            if (!string.IsNullOrWhiteSpace(text)) sections.Add(text);
+        }
         var original = string.Join(Environment.NewLine, sections);
         return [new PageContent(0, original, normalizer.Normalize(original), "Document")];
     }

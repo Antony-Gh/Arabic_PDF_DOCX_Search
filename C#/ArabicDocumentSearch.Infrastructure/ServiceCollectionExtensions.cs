@@ -11,12 +11,14 @@ public static class ServiceCollectionExtensions
         var database = Path.Combine(dataRoot, "database", "app.db");
         var index = Path.Combine(dataRoot, "index");
         var searchLog = Path.Combine(dataRoot, "logs", "search-diagnostics.jsonl");
+        var errorLog = Path.Combine(dataRoot, "logs", "errors.jsonl");
         services.AddSingleton<IArabicTextNormalizer, ArabicTextNormalizer>();
         services.AddSingleton<FileDiscovery>();
         services.AddSingleton<IDocumentExtractor, PdfTextExtractor>();
         services.AddSingleton<IDocumentExtractor, DocxTextExtractor>();
         services.AddSingleton<IMetadataStore>(_ => new SqliteMetadataStore(database));
         services.AddSingleton(new SearchDiagnostics(searchLog));
+        services.AddSingleton(new ErrorDiagnostics(errorLog));
         services.AddSingleton<ITextIndex>(provider => new LuceneTextIndex(
             provider.GetRequiredService<IArabicTextNormalizer>(),
             provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<LuceneTextIndex>>(),

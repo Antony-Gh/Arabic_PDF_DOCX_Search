@@ -31,6 +31,16 @@ public sealed class CoreTests
         Assert.EndsWith("keep.docx", documents[0].FullPath, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void TextQualityAnalyzer_FlagsReplacementAndMojibakeWithoutChangingText()
+    {
+        var report = TextQualityAnalyzer.Analyze("Ø§Ù„Ù†Øµ �");
+
+        Assert.True(report.PossibleMojibake);
+        Assert.True(report.ReplacementCharacterCount > 0);
+        Assert.True(report.Suspicious);
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N"));

@@ -13,6 +13,11 @@ Native Windows WPF application for local Arabic PDF and DOCX search.
 - DOCX paragraph/table-body extraction through Open XML SDK
 - Arabic normalization for letters, diacritics, Arabic/Persian digits, whitespace, and case
 - Persistent Lucene index for normal searches
+- Multilingual Arabic/English search with All, DocumentText, FileName, and Path scopes
+- Filename tokenization that handles names such as `6871_2025_Economic_Court.pdf`
+- Extracted-text viewer showing original versus normalized indexed text
+- Local JSONL search and indexing diagnostics with stack traces
+- Unicode-quality warnings for replacement characters, controls, and common mojibake markers
 - SQLite metadata under `%LOCALAPPDATA%\\ArabicDocumentSearch`
 - Controlled parallel extraction, cancellation, progress, error isolation, and deleted-file cleanup
 - Search result snippets and double-click opening through the Windows default application

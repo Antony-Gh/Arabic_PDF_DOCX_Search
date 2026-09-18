@@ -2,6 +2,7 @@
 using System.Windows.Input;
 using Forms = System.Windows.Forms;
 using ArabicDocumentSearch.Core;
+using System.Windows.Controls;
 
 namespace ArabicDocumentSearch.App;
 
@@ -39,5 +40,23 @@ public partial class MainWindow : Window
     private void Results_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is System.Windows.Controls.DataGrid grid && grid.SelectedItem is SearchResult result) _viewModel.OpenResultCommand.Execute(result);
+    }
+
+    private void ViewExtracted_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem item && item.Parent is ContextMenu menu && menu.PlacementTarget is DataGrid grid && grid.SelectedItem is SearchResult result)
+            _viewModel.ViewExtractedCommand.Execute(result);
+    }
+
+    private void OpenResult_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem item && item.Parent is ContextMenu menu && menu.PlacementTarget is DataGrid grid && grid.SelectedItem is SearchResult result)
+            _viewModel.OpenResultCommand.Execute(result);
+    }
+
+    private void CopyPath_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem item && item.Parent is ContextMenu menu && menu.PlacementTarget is DataGrid grid && grid.SelectedItem is SearchResult result)
+            System.Windows.Clipboard.SetText(result.FullPath);
     }
 }

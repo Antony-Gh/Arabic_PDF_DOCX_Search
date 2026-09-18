@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using ArabicDocumentSearch.Core;
@@ -16,6 +17,7 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     private string _rootFolder = string.Empty;
     private string _excludedFolders = string.Empty;
     private string _query = string.Empty;
+    private SearchScope _scope = SearchScope.All;
     private string _status = "Choose a folder and index your documents.";
     private string _currentFile = string.Empty;
     private string _elapsed = "Elapsed: 00:00:00";
@@ -34,6 +36,8 @@ public sealed class SearchViewModel : INotifyPropertyChanged
         CancelCommand = new RelayCommand(Cancel, () => IsBusy);
         SearchCommand = new RelayCommand(() => _ = SearchAsync(), () => !string.IsNullOrWhiteSpace(Query));
         OpenResultCommand = new RelayCommand<SearchResult>(OpenResult);
+        ViewExtractedCommand = new RelayCommand<SearchResult>(result => _ = ViewExtractedAsync(result));
+        OpenDiagnosticsCommand = new RelayCommand(OpenDiagnostics);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -42,10 +46,14 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     public ICommand CancelCommand { get; }
     public ICommand SearchCommand { get; }
     public ICommand OpenResultCommand { get; }
+    public ICommand ViewExtractedCommand { get; }
+    public ICommand OpenDiagnosticsCommand { get; }
+    public IReadOnlyList<SearchScope> SearchScopes { get; } = Enum.GetValues<SearchScope>();
 
     public string RootFolder { get => _rootFolder; set { _rootFolder = value; OnChanged(); OnChanged(nameof(CanIndex)); RefreshCommands(); } }
     public string ExcludedFolders { get => _excludedFolders; set { _excludedFolders = value; OnChanged(); } }
     public string Query { get => _query; set { _query = value; OnChanged(); RefreshCommands(); } }
+    public SearchScope Scope { get => _scope; set { _scope = value; OnChanged(); } }
     public string Status { get => _status; private set { _status = value; OnChanged(); } }
     public string CurrentFile { get => _currentFile; private set { _currentFile = value; OnChanged(); } }
     public string Elapsed { get => _elapsed; private set { _elapsed = value; OnChanged(); } }
@@ -114,7 +122,7 @@ public sealed class SearchViewModel : INotifyPropertyChanged
         Results.Clear();
         try
         {
-            var outcome = await _searchIndex.SearchAsync(Query, 500, cancellation.Token);
+            var outcome = await _searchIndex.SearchAsync(Query, Scope, 500, cancellation.Token);
             if (outcome.Cancelled)
             {
                 Status = "Search cancelled.";
@@ -149,6 +157,26 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     {
         if (result is null) return;
         Process.Start(new ProcessStartInfo(result.FullPath) { UseShellExecute = true });
+    }
+
+    private async Task ViewExtractedAsync(SearchResult? result)
+    {
+        if (result is null) return;
+        var document = await _searchIndex.GetExtractedDocumentAsync(result.DocumentId);
+        if (document is null)
+        {
+            Status = "Extracted text is not available for this result.";
+            return;
+        }
+        var window = new ExtractedTextWindow(document) { Owner = System.Windows.Application.Current.MainWindow };
+        window.Show();
+    }
+
+    private static void OpenDiagnostics()
+    {
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ArabicDocumentSearch", "logs");
+        var window = new DiagnosticsWindow(path) { Owner = System.Windows.Application.Current.MainWindow };
+        window.Show();
     }
 
     private void OnChanged([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

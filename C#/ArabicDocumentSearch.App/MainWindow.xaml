@@ -25,10 +25,11 @@
         </Border>
         <Border Grid.Row="2" Padding="16" Background="{DynamicResource PanelBrush}" CornerRadius="8">
             <Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBox Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" FontSize="16" Padding="10" KeyDown="Query_KeyDown" />
-                <Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}" />
-                <Button Grid.Column="2" Content="Index files" Command="{Binding IndexCommand}" />
+                <ComboBox Grid.Column="1" Margin="4" Width="130" ItemsSource="{Binding SearchScopes}" SelectedItem="{Binding Scope}" />
+                <Button Grid.Column="2" Content="Search" Command="{Binding SearchCommand}" />
+                <Button Grid.Column="3" Content="Index files" Command="{Binding IndexCommand}" />
             </Grid>
         </Border>
         <Grid Grid.Row="3" Margin="0,16,0,0">
@@ -39,7 +40,10 @@
                     <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding CancelCommand}" />
                     <TextBlock Text="{Binding Status}" Foreground="#475467" />
                 </DockPanel>
-                <TextBlock Text="{Binding CurrentFile}" Foreground="#667085" TextTrimming="CharacterEllipsis" />
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Diagnostics" Command="{Binding OpenDiagnosticsCommand}" />
+                    <TextBlock Text="{Binding CurrentFile}" Foreground="#667085" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
                 <WrapPanel Margin="0,6,0,0">
                     <TextBlock Text="{Binding Started}" Margin="0,0,18,0" Foreground="#667085" />
                     <TextBlock Text="{Binding Elapsed}" Margin="0,0,18,0" Foreground="#667085" />
@@ -49,8 +53,16 @@
                 </WrapPanel>
             </StackPanel>
             <DataGrid Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Results}" AutoGenerateColumns="False" IsReadOnly="True" MouseDoubleClick="Results_MouseDoubleClick" HeadersVisibility="Column" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="View extracted text" Click="ViewExtracted_Click" />
+                        <MenuItem Header="Open file" Click="OpenResult_Click" />
+                        <MenuItem Header="Copy path" Click="CopyPath_Click" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="File" Binding="{Binding FileName}" Width="220" />
+                    <DataGridTextColumn Header="Match" Binding="{Binding MatchKind}" Width="100" />
                     <DataGridTextColumn Header="Page / location" Binding="{Binding Location}" Width="120" />
                     <DataGridTextColumn Header="Path" Binding="{Binding FullPath}" Width="260" />
                     <DataGridTextColumn Header="Context" Binding="{Binding Snippet}" Width="*" />
