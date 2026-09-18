@@ -42,7 +42,8 @@ public sealed record SearchOutcome(
     IReadOnlyList<SearchResult> Results,
     TimeSpan Elapsed,
     string? ErrorMessage = null,
-    string? ErrorType = null);
+    string? ErrorType = null,
+    string? ErrorStackTrace = null);
 
 public sealed record IndexProgress(
     int Total,

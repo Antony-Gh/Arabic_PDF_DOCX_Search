@@ -19,6 +19,7 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     private string _status = "Choose a folder and index your documents.";
     private string _currentFile = string.Empty;
     private string _elapsed = "Elapsed: 00:00:00";
+    private string _started = "Started: Calculating...";
     private string _remaining = "Remaining: Calculating...";
     private string _completion = "Estimated completion: Calculating...";
     private string _speed = "Speed: Calculating...";
@@ -48,6 +49,7 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     public string Status { get => _status; private set { _status = value; OnChanged(); } }
     public string CurrentFile { get => _currentFile; private set { _currentFile = value; OnChanged(); } }
     public string Elapsed { get => _elapsed; private set { _elapsed = value; OnChanged(); } }
+    public string Started { get => _started; private set { _started = value; OnChanged(); } }
     public string Remaining { get => _remaining; private set { _remaining = value; OnChanged(); } }
     public string Completion { get => _completion; private set { _completion = value; OnChanged(); } }
     public string Speed { get => _speed; private set { _speed = value; OnChanged(); } }
@@ -85,6 +87,9 @@ public sealed class SearchViewModel : INotifyPropertyChanged
     {
         Progress = progress.Total == 0 ? 100 : progress.Processed * 100d / progress.Total;
         CurrentFile = progress.CurrentFile ?? string.Empty;
+        Started = progress.StartedAtUtc == default
+            ? "Started: Calculating..."
+            : $"Started: {progress.StartedAtUtc.ToLocalTime():HH:mm:ss}";
         Elapsed = $"Elapsed: {progress.Elapsed:hh\\:mm\\:ss}";
         Remaining = progress.EstimatedRemaining is { } remaining
             ? $"Remaining: {remaining:hh\\:mm\\:ss}"

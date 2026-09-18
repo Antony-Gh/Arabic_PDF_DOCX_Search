@@ -38,7 +38,14 @@ public sealed class DocumentIndexer(FileDiscovery discovery, IEnumerable<IDocume
             {
                 Interlocked.Increment(ref errors);
                 logger.LogError(exception, "Failed to index {Path}", document.FullPath);
-                await metadata.UpsertAsync(new DocumentMetadata(document.Id, document.FullPath, document.FileName, document.Extension, document.FileSize, document.LastWriteTimeUtc, "Failed", DateTime.UtcNow, ErrorMessage: exception.Message), token);
+                try
+                {
+                    await metadata.UpsertAsync(new DocumentMetadata(document.Id, document.FullPath, document.FileName, document.Extension, document.FileSize, document.LastWriteTimeUtc, "Failed", DateTime.UtcNow, ErrorMessage: exception.Message), token);
+                }
+                catch (Exception metadataException)
+                {
+                    logger.LogError(metadataException, "Failed to record indexing error for {Path}", document.FullPath);
+                }
             }
             var current = Interlocked.Increment(ref processed);
             var now = DateTime.UtcNow;

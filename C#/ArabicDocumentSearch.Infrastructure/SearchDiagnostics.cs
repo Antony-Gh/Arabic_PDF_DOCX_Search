@@ -21,6 +21,7 @@ public sealed class SearchDiagnostics(string logPath)
                 ElapsedMilliseconds = outcome.Elapsed.TotalMilliseconds,
                 ErrorType = outcome.ErrorType,
                 ErrorMessage = outcome.ErrorMessage,
+                ErrorStackTrace = outcome.ErrorStackTrace,
                 IndexPath = indexPath,
                 ApplicationVersion = typeof(SearchDiagnostics).Assembly.GetName().Version?.ToString()
             };

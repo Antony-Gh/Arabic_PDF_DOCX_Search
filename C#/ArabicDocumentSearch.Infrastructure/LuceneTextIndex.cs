@@ -124,7 +124,7 @@ public sealed class LuceneTextIndex : ITextIndex, IDisposable
         catch (Exception exception)
         {
             _logger.LogError(exception, "Search failed for query length {QueryLength}", query.Length);
-            var failureOutcome = new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, exception.Message, exception.GetType().Name);
+            var failureOutcome = new SearchOutcome(query, false, false, [], DateTime.UtcNow - started, exception.Message, exception.GetType().Name, exception.ToString());
             _diagnostics.Write(failureOutcome, _indexPath);
             return failureOutcome;
         }
