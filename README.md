@@ -17,6 +17,7 @@ A local Windows desktop application for searching recursively through PDF and DO
 - Shows surrounding context
 - Opens the source file from the result
 - Re-indexes with one click
+- Shows indexing progress while scanning the folder
 - No cloud upload: documents stay on your computer
 
 ## Important

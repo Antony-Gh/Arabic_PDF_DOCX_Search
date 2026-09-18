@@ -99,6 +99,8 @@ class SearchApp(tk.Tk):
         self.tesseract = tk.StringVar()
         self.status = tk.StringVar(value="Choose a folder and index your documents.")
         self.index = []  # (path, page, original_text, normalized_text)
+        self.index_button = None
+        self.progress = None
 
         self.build_ui()
 
@@ -111,7 +113,8 @@ class SearchApp(tk.Tk):
         ttk.Label(top, text="Documents folder:").pack(side="left")
         ttk.Entry(top, textvariable=self.folder).pack(side="left", fill="x", expand=True, padx=8)
         ttk.Button(top, text="Choose Folder", command=self.choose_folder).pack(side="left")
-        ttk.Button(top, text="Index Files", command=self.start_index).pack(side="left", padx=5)
+        self.index_button = ttk.Button(top, text="Index Files", command=self.start_index)
+        self.index_button.pack(side="left", padx=5)
 
         opts = ttk.Frame(self)
         opts.pack(fill="x", **pad)
@@ -140,6 +143,9 @@ class SearchApp(tk.Tk):
         ttk.Button(ocr, text="Browse", command=self.choose_tesseract).pack(side="left", padx=5)
 
         ttk.Label(self, textvariable=self.status).pack(fill="x", **pad)
+
+        self.progress = ttk.Progressbar(self, mode="determinate", maximum=1, value=0)
+        self.progress.pack(fill="x", padx=10, pady=(0, 6))
 
         columns = ("file", "page", "score", "context")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")
@@ -172,39 +178,72 @@ class SearchApp(tk.Tk):
             self.tesseract.set(p)
 
     def start_index(self):
-        if not self.folder.get():
+        folder_value = self.folder.get().strip()
+        if not folder_value:
             messagebox.showwarning("Folder required", "Choose a documents folder first.")
             return
-        self.tree.delete(*self.tree.get_children())
-        threading.Thread(target=self.index_documents, daemon=True).start()
 
-    def index_documents(self):
-        folder = Path(self.folder.get())
-        paths = [
-            p for p in folder.rglob("*")
-            if p.is_file() and p.suffix.lower() in {".pdf", ".docx"}
-        ]
+        self.tree.delete(*self.tree.get_children())
         self.index = []
+        self.index_button.configure(state="disabled")
+        self.progress.configure(mode="indeterminate", value=0)
+        self.progress.start(12)
+
+        use_ocr = self.use_ocr.get()
+        tesseract_path = self.tesseract.get().strip()
+        threading.Thread(
+            target=self.index_documents,
+            args=(Path(folder_value), use_ocr, tesseract_path),
+            daemon=True,
+        ).start()
+
+    def index_documents(self, folder, use_ocr, tesseract_path):
+        try:
+            paths = [
+                p for p in folder.rglob("*")
+                if p.is_file() and p.suffix.lower() in {".pdf", ".docx"}
+            ]
+        except Exception as e:
+            self.after(0, self.finish_index, [], 0, f"Could not scan folder: {e}")
+            return
+
         total = len(paths)
+        self.after(0, self.prepare_progress, total)
+        new_index = []
 
         for n, path in enumerate(paths, 1):
             try:
-                pages = extract(
-                    path,
-                    use_ocr=self.use_ocr.get(),
-                    tesseract_path=self.tesseract.get().strip()
-                )
+                pages = extract(path, use_ocr=use_ocr, tesseract_path=tesseract_path)
                 for page_no, text in pages:
                     if text.strip():
-                        self.index.append((str(path), page_no, text, normalize_arabic(text)))
+                        new_index.append((str(path), page_no, text, normalize_arabic(text)))
             except Exception as e:
                 print(f"ERROR: {path}: {e}")
-            self.after(0, self.status.set, f"Indexing {n}/{total}: {path.name}")
+            self.after(0, self.update_progress, n, total, path.name)
 
         self.after(
-            0, self.status.set,
-            f"Indexed {len(self.index)} searchable pages/sections from {total} files."
+            0,
+            self.finish_index,
+            new_index,
+            total,
+            f"Indexed {len(new_index)} searchable pages/sections from {total} files.",
         )
+
+    def prepare_progress(self, total):
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=max(1, total), value=0)
+        self.status.set(f"Found {total} PDF/DOCX files. Starting index...")
+
+    def update_progress(self, current, total, filename):
+        self.progress.configure(value=current)
+        self.status.set(f"Indexing {current}/{total}: {filename}")
+
+    def finish_index(self, new_index, total, status):
+        self.index = new_index
+        self.progress.stop()
+        self.progress.configure(mode="determinate", maximum=max(1, total), value=total)
+        self.status.set(status)
+        self.index_button.configure(state="normal")
 
     def search(self):
         q = self.query.get().strip()
