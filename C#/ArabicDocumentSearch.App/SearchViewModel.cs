@@ -60,8 +60,11 @@ public sealed class SearchViewModel : INotifyPropertyChanged
         try
         {
             var excluded = ExcludedFolders.Split([Environment.NewLine], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var progress = new Progress<IndexProgress>(UpdateProgress);
-            var summary = await _indexer.IndexAsync(RootFolder, new IndexOptions(true, excluded), progress, _indexCancellation.Token);
+            var progress = new ThrottledProgress(new Progress<IndexProgress>(UpdateProgress), TimeSpan.FromMilliseconds(150));
+            var summary = await Task.Run(
+                () => _indexer.IndexAsync(RootFolder, new IndexOptions(true, excluded), progress, _indexCancellation.Token),
+                _indexCancellation.Token);
+            UpdateProgress(summary);
             Status = $"Ready. Indexed {summary.Indexed}, skipped {summary.Skipped}, failed {summary.Errors} of {summary.Total} files.";
         }
         catch (OperationCanceledException) { Status = "Indexing cancelled."; }
@@ -97,6 +100,23 @@ public sealed class SearchViewModel : INotifyPropertyChanged
         if (IndexCommand is AsyncCommand index) index.RaiseCanExecuteChanged();
         if (CancelCommand is RelayCommand cancel) cancel.RaiseCanExecuteChanged();
         if (SearchCommand is RelayCommand search) search.RaiseCanExecuteChanged();
+    }
+}
+
+public sealed class ThrottledProgress(IProgress<IndexProgress> inner, TimeSpan interval) : IProgress<IndexProgress>
+{
+    private readonly object _gate = new();
+    private DateTime _lastReportUtc = DateTime.MinValue;
+
+    public void Report(IndexProgress value)
+    {
+        lock (_gate)
+        {
+            var now = DateTime.UtcNow;
+            if (now - _lastReportUtc < interval && value.Processed < value.Total) return;
+            _lastReportUtc = now;
+            inner.Report(value);
+        }
     }
 }
 
